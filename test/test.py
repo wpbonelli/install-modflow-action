@@ -31,7 +31,7 @@ expected_exes = {
         'crt',
         'mt3dms',
         'mf2005dbl',
-        'zonbud3',
+        'zonbud',
         'gridgen',
         'mflgrdbl',
         'mfnwt',
@@ -57,6 +57,12 @@ expected_libs = {
     "executables": ["libmf6"],
     "modflow6": ["libmf6"],
     "modflow6-nightly-build": ["libmf6"]
+}
+
+# executables that have been renamed upstream at some point; accept the old
+# name too, so tests pass against both latest and older pinned release tags
+exe_aliases = {
+    'zonbud': ['zonbud3'],
 }
 
 # apply subset filter, if provided
@@ -98,6 +104,14 @@ def get_expected_files(repository) -> Tuple[List[str], List[str]]:
     return exes, libs
 
 
+def alt_names(exe) -> List[str]:
+    """Given an (possibly suffixed) expected exe name, return itself plus any
+    known former/alternate names it may appear as, with the same suffix."""
+    base, _, suffix = exe.partition('.')
+    suffix = f".{suffix}" if suffix else ""
+    return [exe] + [f"{alias}{suffix}" for alias in exe_aliases.get(base, [])]
+
+
 # check install location exists
 assert path.is_dir(), f"Install location {path} doesn't exist"
 print(f"Found install location: {path}")
@@ -109,15 +123,17 @@ assert Path(env_var).is_dir()
 
 # check executables exist
 found = sorted([p.name for p in path.glob("*")])
+found_set = set(found)
 exp_exes, exp_libs = get_expected_files(repo)
 expected = exp_exes + exp_libs
-assert set(found) >= set(exp_exes), f"Executables/libraries missing:\n Found {set(found)}\n Expected {set(exp_exes)}"
+missing = [exe for exe in exp_exes if not (set(alt_names(exe)) & found_set)]
+assert not missing, f"Executables/libraries missing:\n Found {found_set}\n Expected {set(exp_exes)}"
 print(f"Found all expected executables/libraries:")
 pprint(expected)
 
 # check executables are on the PATH
 for exe in exp_exes:
-    assert which(exe), f"Executable {exe} not found on path"
+    assert any(which(name) for name in alt_names(exe)), f"Executable {exe} not found on path"
 print(f"Verified executables are on system path")
 
 

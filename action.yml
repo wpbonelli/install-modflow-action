@@ -152,6 +152,15 @@ runs:
           args="$args --ostag ${{ inputs.ostag }}"
         fi
 
+        # work around broken/incomplete local CA trust stores on some runners by pointing
+        # Python's default SSL context at certifi's CA bundle, regardless of which install
+        # path below ends up running
+        python3 -m pip install --quiet --disable-pip-version-check certifi || true
+        cert_file="$(python3 -m certifi 2>/dev/null || true)"
+        if [[ -n "$cert_file" ]]; then
+          export SSL_CERT_FILE="$cert_file"
+        fi
+
         # download the installation script if necessary
         if command -v get-modflow &> /dev/null
         then
